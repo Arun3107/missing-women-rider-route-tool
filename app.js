@@ -41,7 +41,8 @@ async function saveNoiseLogToSupabase(entry) {
     part: String(entry.part),
     title: entry.title,
     captured_at: entry.timestamp,
-    decibel: entry.decibel ? Number(entry.decibel) : null,
+    min_db: entry.minDb,
+    max_db: entry.maxDb,
     note: entry.note,
     latitude: entry.lat,
     longitude: entry.lng,
@@ -99,7 +100,8 @@ async function fetchNoiseLogsFromSupabase() {
     part: row.part,
     title: row.title,
     timestamp: row.captured_at,
-    decibel: row.decibel,
+    minDb: row.min_db,
+    maxDb: row.max_db,
     note: row.note,
     lat: row.latitude,
     lng: row.longitude,
@@ -179,13 +181,14 @@ function toggleDay(day) {
   render();
 }
 function noisePanel() {
-  return `<div id="noisePanel" class="noise-panel"><h2>Record Noise</h2><div class="small" id="noiseTrip"></div><div class="field"><label>Decibel reading (optional)</label><input id="decibel" inputmode="decimal" placeholder="Example: 72"></div><div class="field"><label>Photo (optional)</label><input id="noisePhoto" type="file" accept="image/*" capture="environment"></div><div class="field"><label>Note (optional)</label><textarea id="note" rows="3" placeholder="Add note"></textarea></div><div class="panel-actions"><button class="btn complete" onclick="closeNoise()">Cancel</button><button class="btn nav" onclick="saveNoise()">Save Log</button></div></div>`;
+  return `<div id="noisePanel" class="noise-panel"><h2>Record Noise</h2><div class="small" id="noiseTrip"></div><div class="field"><label>Min dB (required)</label><input id="minDb" inputmode="decimal" placeholder="Example: 60"></div><div class="field"><label>Max dB (required)</label><input id="maxDb" inputmode="decimal" placeholder="Example: 85"></div><div class="field"><label>Photo (optional)</label><input id="noisePhoto" type="file" accept="image/*" capture="environment"></div><div class="field"><label>Note (optional)</label><textarea id="note" rows="3" placeholder="Add note"></textarea></div><div class="panel-actions"><button class="btn complete" onclick="closeNoise()">Cancel</button><button class="btn nav" onclick="saveNoise()">Save Log</button></div></div>`;
 }
 function openNoise(trip) {
   state.currentTrip = trip;
   $("#noisePanel").classList.add("open");
   $("#noiseTrip").textContent = `Day ${trip.day} - ${trip.title}`;
-  $("#decibel").value = "";
+  $("#minDb").value = "";
+  $("#maxDb").value = "";
   $("#note").value = "";
   $("#noisePhoto").value = "";
 }
@@ -236,7 +239,8 @@ async function exportNoiseLogs() {
           <td>Day ${escapeHtml(log.day)}</td>
           <td>${escapeHtml(log.title)}</td>
           <td>${escapeHtml(log.captured_at || log.timestamp)}</td>
-          <td>${escapeHtml(log.decibel || "")}</td>
+          <td>${escapeHtml(log.minDb || "")}</td>
+          <td>${escapeHtml(log.maxDb || "")}</td>
           <td>${escapeHtml(log.lat || "")}</td>
           <td>${escapeHtml(log.lng || "")}</td>
           <td>${escapeHtml(log.note || "")}</td>
@@ -273,7 +277,8 @@ async function exportNoiseLogs() {
         <th>Day</th>
         <th>Trip</th>
         <th>Timestamp</th>
-        <th>dB</th>
+        <th>Min dB</th>
+        <th>Max dB</th>
         <th>Lat</th>
         <th>Lng</th>
         <th>Note</th>
@@ -305,10 +310,19 @@ function saveNoise() {
   const photoInput = $("#noisePhoto");
   const photoFile = photoInput?.files?.[0] || null;
 
+  const minDb = $("#minDb").value;
+  const maxDb = $("#maxDb").value;
+
+  if (!minDb || !maxDb) {
+    showToast("Enter min and max dB");
+    return;
+  }
+
   const entry = {
     ...trip,
     timestamp: new Date().toISOString(),
-    decibel: $("#decibel").value || null,
+    minDb: Number(minDb),
+    maxDb: Number(maxDb),
     note: $("#note").value || null,
     photoName: photoFile ? photoFile.name : null,
     photoType: photoFile ? photoFile.type : null,
