@@ -72,6 +72,43 @@ async function saveNoiseLogToSupabase(entry) {
   return { saved: true };
 }
 
+async function fetchNoiseLogsFromSupabase() {
+  if (!isSupabaseReady()) return null;
+
+  const res = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${SUPABASE_NOISE_TABLE}?select=*&order=captured_at.desc`,
+    {
+      method: "GET",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase export failed: ${res.status} ${text}`);
+  }
+
+  const rows = await res.json();
+
+  return rows.map((row) => ({
+    day: row.day,
+    itineraryId: row.itinerary_id,
+    part: row.part,
+    title: row.title,
+    timestamp: row.captured_at,
+    decibel: row.decibel,
+    note: row.note,
+    lat: row.latitude,
+    lng: row.longitude,
+    photoName: row.photo_name,
+    photoType: row.photo_type,
+    photoDataUrl: row.photo_data_url,
+  }));
+}
+
 function fmt(n) {
   return Number(n || 0).toFixed(1);
 }
@@ -135,7 +172,7 @@ function render() {
     )
     .join("");
   document.querySelector("#app").innerHTML =
-    `<div class="app"><header class="topbar"><div><h1>Missing Women Rider Routes</h1><p>Fixed 15-day plan - Current Location continues from the rider’s actual position</p></div><button class="export-link" onclick="exportNoiseLogs()">Export Logs</button></header><div class="day-list">${days}</div></div>${noisePanel()}<div id="toast" class="toast hidden"></div>`;
+    `<div class="app"><header class="topbar"><div><h1>Missing Women Rider Routes</h1><p>Fixed 15-day plan - Current Location continues from the rider’s actual position</p></div><button class="export-link" onclick="exportNoiseLogs()">Export Report</button></header><div class="day-list">${days}</div></div>${noisePanel()}<div id="toast" class="toast hidden"></div>`;
 }
 function toggleDay(day) {
   state.openDay = state.openDay === day ? null : day;
@@ -156,37 +193,110 @@ function closeNoise() {
   $("#noisePanel").classList.remove("open");
 }
 
-function exportNoiseLogs() {
-  const saved = loadState();
-  const logs = saved.noiseLogs || [];
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-  if (!logs.length) {
-    showToast("No noise logs to export");
+async function exportNoiseLogs() {
+  let logs = [];
+
+  try {
+    logs = (await fetchNoiseLogsFromSupabase()) || [];
+  } catch (err) {
+    console.error(err);
+    showToast(`Supabase export failed: ${err.message.slice(0, 80)}`);
     return;
   }
 
-  const exportData = {
-    exportedAt: new Date().toISOString(),
-    totalLogs: logs.length,
-    logs,
-  };
+  if (!logs.length && !isSupabaseReady()) {
+    const saved = loadState();
+    logs = saved.noiseLogs || [];
+  }
 
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: "application/json",
-  });
+  if (!logs.length) {
+    showToast("No Supabase noise logs to export");
+    return;
+  }
 
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const rows = logs
+    .map((log, index) => {
+      const imageBlock = log.photoDataUrl
+        ? `<a href="${log.photoDataUrl}" download="noise-photo-${index + 1}.jpg"><img src="${log.photoDataUrl}" alt="Noise photo ${index + 1}" /></a>`
+        : `<span class="muted">No photo</span>`;
+
+      return `
+        <tr>
+          <td>${index + 1}</td>
+          <td>Day ${escapeHtml(log.day)}</td>
+          <td>${escapeHtml(log.title)}</td>
+          <td>${escapeHtml(log.captured_at || log.timestamp)}</td>
+          <td>${escapeHtml(log.decibel || "")}</td>
+          <td>${escapeHtml(log.lat || "")}</td>
+          <td>${escapeHtml(log.lng || "")}</td>
+          <td>${escapeHtml(log.note || "")}</td>
+          <td>${imageBlock}</td>
+        </tr>`;
+    })
+    .join("");
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Missing Women Noise Logs</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 24px; color: #111827; background: #f8fafc; }
+    h1 { margin: 0 0 6px; font-size: 24px; }
+    p { margin: 0 0 18px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 10px; vertical-align: top; text-align: left; font-size: 13px; }
+    th { background: #0f172a; color: white; font-size: 12px; }
+    img { width: 160px; max-width: 40vw; border-radius: 10px; border: 1px solid #e5e7eb; display: block; }
+    .muted { color: #9ca3af; }
+    .note { max-width: 220px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Missing Women Noise Logs</h1>
+  <p>Exported ${escapeHtml(new Date().toLocaleString())} · ${logs.length} Supabase logs · Photos are embedded and can be opened or saved from this file.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Day</th>
+        <th>Trip</th>
+        <th>Timestamp</th>
+        <th>dB</th>
+        <th>Lat</th>
+        <th>Lng</th>
+        <th>Note</th>
+        <th>Photo</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 
   link.href = url;
-  link.download = `missing-women-noise-logs-${stamp}.json`;
+  link.download = `missing-women-noise-report-${stamp}.html`;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
 
-  showToast("Noise logs exported with images");
+  showToast("Report exported with photos");
 }
 function saveNoise() {
   const trip = state.currentTrip;
