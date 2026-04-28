@@ -196,6 +196,34 @@ function closeNoise() {
   $("#noisePanel").classList.remove("open");
 }
 
+function resizeImageToDataUrl(file, maxWidth = 1024, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+
+      img.onerror = () => reject(new Error("Could not process photo"));
+      img.src = reader.result;
+    };
+
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -318,6 +346,16 @@ function saveNoise() {
     return;
   }
 
+  if (Number.isNaN(Number(minDb)) || Number.isNaN(Number(maxDb))) {
+    showToast("dB values must be numbers");
+    return;
+  }
+
+  if (Number(minDb) > Number(maxDb)) {
+    showToast("Min dB cannot be greater than max dB");
+    return;
+  }
+
   const entry = {
     ...trip,
     timestamp: new Date().toISOString(),
@@ -347,7 +385,7 @@ function saveNoise() {
     } catch (err) {
       console.error(err);
       closeNoise();
-      showToast(`Saved locally. Supabase failed: ${err.message.slice(0, 80)}`);
+      alert(`Saved locally, but Supabase failed:\n\n${err.message}`);
     }
   };
 
@@ -368,15 +406,16 @@ function saveNoise() {
   };
 
   if (photoFile) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      entry.photoDataUrl = reader.result;
-      persistWithLocation();
-    };
-    reader.onerror = () => {
-      showToast("Photo could not be saved");
-    };
-    reader.readAsDataURL(photoFile);
+    showToast("Saving photo...");
+    resizeImageToDataUrl(photoFile)
+      .then((dataUrl) => {
+        entry.photoDataUrl = dataUrl;
+        persistWithLocation();
+      })
+      .catch((err) => {
+        console.error(err);
+        showToast("Photo could not be saved");
+      });
   } else {
     persistWithLocation();
   }
@@ -385,7 +424,7 @@ function showToast(msg) {
   const t = $("#toast");
   t.textContent = msg;
   t.classList.remove("hidden");
-  setTimeout(() => t.classList.add("hidden"), 1800);
+  setTimeout(() => t.classList.add("hidden"), 3000);
 }
 init().catch((err) => {
   document.querySelector("#app").innerHTML =
