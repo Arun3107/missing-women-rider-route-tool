@@ -6,6 +6,7 @@ const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
 const SUPABASE_NOISE_TABLE = "noise_logs";
+const SUPABASE_PHOTO_BUCKET = "noise-photos";
 
 function isSupabaseReady() {
   return (
@@ -48,7 +49,8 @@ async function saveNoiseLogToSupabase(entry) {
     longitude: entry.lng,
     photo_name: entry.photoName,
     photo_type: entry.photoType,
-    photo_data_url: entry.photoDataUrl,
+    photo_url: entry.photoUrl,
+    photo_path: entry.photoPath,
   };
 
   const res = await fetch(
@@ -71,6 +73,56 @@ async function saveNoiseLogToSupabase(entry) {
   }
 
   return { saved: true };
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(",");
+  const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
+}
+
+async function uploadNoisePhotoToSupabase(entry, dataUrl) {
+  if (!isSupabaseReady() || !dataUrl) return null;
+
+  const blob = dataUrlToBlob(dataUrl);
+  const safeTitle = String(entry.title || "trip")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  const fileName = `${Date.now()}-day-${entry.day}-${safeTitle || "noise"}.jpg`;
+  const filePath = `day-${entry.day}/${fileName}`;
+
+  const uploadRes = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/${SUPABASE_PHOTO_BUCKET}/${filePath}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "image/jpeg",
+        "x-upsert": "false",
+      },
+      body: blob,
+    },
+  );
+
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text();
+    throw new Error(`Photo upload failed: ${uploadRes.status} ${text}`);
+  }
+
+  return {
+    photoPath: filePath,
+    photoUrl: `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${SUPABASE_PHOTO_BUCKET}/${filePath}`,
+  };
 }
 
 async function fetchNoiseLogsFromSupabase() {
@@ -107,6 +159,8 @@ async function fetchNoiseLogsFromSupabase() {
     lng: row.longitude,
     photoName: row.photo_name,
     photoType: row.photo_type,
+    photoUrl: row.photo_url,
+    photoPath: row.photo_path,
     photoDataUrl: row.photo_data_url,
   }));
 }
@@ -196,7 +250,7 @@ function closeNoise() {
   $("#noisePanel").classList.remove("open");
 }
 
-function resizeImageToDataUrl(file, maxWidth = 1024, quality = 0.72) {
+function resizeImageToDataUrl(file, maxWidth = 640, quality = 0.55) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -257,8 +311,9 @@ async function exportNoiseLogs() {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const rows = logs
     .map((log, index) => {
-      const imageBlock = log.photoDataUrl
-        ? `<a href="${log.photoDataUrl}" download="noise-photo-${index + 1}.jpg"><img src="${log.photoDataUrl}" alt="Noise photo ${index + 1}" /></a>`
+      const photoSrc = log.photoUrl || log.photoDataUrl;
+      const imageBlock = photoSrc
+        ? `<a href="${photoSrc}" target="_blank" rel="noopener"><img src="${photoSrc}" alt="Noise photo ${index + 1}" /></a>`
         : `<span class="muted">No photo</span>`;
 
       return `
@@ -297,7 +352,7 @@ async function exportNoiseLogs() {
 </head>
 <body>
   <h1>Missing Women Noise Logs</h1>
-  <p>Exported ${escapeHtml(new Date().toLocaleString())} · ${logs.length} Supabase logs · Photos are embedded and can be opened or saved from this file.</p>
+  <p>Exported ${escapeHtml(new Date().toLocaleString())} · ${logs.length} Supabase logs · Photos open from Supabase Storage.</p>
   <table>
     <thead>
       <tr>
@@ -365,16 +420,40 @@ function saveNoise() {
     photoName: photoFile ? photoFile.name : null,
     photoType: photoFile ? photoFile.type : null,
     photoDataUrl: null,
+    photoUrl: null,
+    photoPath: null,
     lat: null,
     lng: null,
   };
 
   const persist = async () => {
     const s = loadState();
-    s.noiseLogs.push(entry);
-    saveState(s);
+    const localEntry = {
+      ...entry,
+      photoDataUrl: null,
+      photoUrl: null,
+      photoPath: null,
+    };
+    s.noiseLogs.push(localEntry);
+    try {
+      saveState(s);
+    } catch (err) {
+      console.warn("Local save skipped because browser storage is full", err);
+    }
 
     try {
+      if (entry.photoDataUrl) {
+        const uploadedPhoto = await uploadNoisePhotoToSupabase(
+          entry,
+          entry.photoDataUrl,
+        );
+        if (uploadedPhoto) {
+          entry.photoUrl = uploadedPhoto.photoUrl;
+          entry.photoPath = uploadedPhoto.photoPath;
+          entry.photoDataUrl = null;
+        }
+      }
+
       await saveNoiseLogToSupabase(entry);
       closeNoise();
       showToast(
@@ -406,7 +485,7 @@ function saveNoise() {
   };
 
   if (photoFile) {
-    showToast("Saving photo...");
+    showToast("Compressing photo...");
     resizeImageToDataUrl(photoFile)
       .then((dataUrl) => {
         entry.photoDataUrl = dataUrl;
