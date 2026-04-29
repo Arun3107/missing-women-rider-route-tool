@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Noise Logs Dashboard</title>
+
+    <style>
+      body {
+        font-family: system-ui;
+        margin: 20px;
+        background: #f8fafc;
+        color: #111827;
+      }
+
+      h1 {
+        margin-bottom: 10px;
+      }
+
+      .filters {
+        margin-bottom: 16px;
+      }
+
+      select {
+        padding: 8px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+      }
+
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 12px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+      }
+
+      .meta {
+        font-size: 12px;
+        color: #6b7280;
+        margin-bottom: 6px;
+      }
+
+      img {
+        width: 100%;
+        max-width: 280px;
+        border-radius: 10px;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Noise Logs Dashboard</h1>
+
+    <div class="filters">
+      <select id="dayFilter">
+        <option value="">All Days</option>
+      </select>
+    </div>
+
+    <div id="list"></div>
+
+    <script>
+      const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
+      const SUPABASE_KEY = "PASTE_ANON_KEY";
+
+      async function fetchLogs() {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/noise_logs?select=*&order=captured_at.desc`,
+          {
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+            },
+          },
+        );
+
+        return res.json();
+      }
+
+      function render(logs) {
+        const day = document.getElementById("dayFilter").value;
+
+        const filtered = day ? logs.filter((l) => l.day == day) : logs;
+
+        document.getElementById("list").innerHTML = filtered
+          .map(
+            (l) => `
+      <div class="card">
+        <div><strong>Day ${l.day}</strong></div>
+        <div>${l.title}</div>
+
+        <div class="meta">
+          ${new Date(l.captured_at).toLocaleString()}<br>
+          dB: ${l.min_db} - ${l.max_db}<br>
+          ${l.latitude}, ${l.longitude}
+        </div>
+
+        ${l.note ? `<div>${l.note}</div>` : ""}
+
+        ${l.photo_url ? `<img src="${l.photo_url}" />` : ""}
+      </div>
+    `,
+          )
+          .join("");
+      }
+
+      function setupFilter(logs) {
+        const days = [...new Set(logs.map((l) => l.day))];
+
+        const select = document.getElementById("dayFilter");
+
+        days.forEach((d) => {
+          const opt = document.createElement("option");
+          opt.value = d;
+          opt.textContent = `Day ${d}`;
+          select.appendChild(opt);
+        });
+
+        select.onchange = () => render(logs);
+      }
+
+      (async function init() {
+        const logs = await fetchLogs();
+        setupFilter(logs);
+        render(logs);
+      })();
+    </script>
+  </body>
+</html>
