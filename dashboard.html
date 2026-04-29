@@ -3,66 +3,389 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Noise Logs Dashboard</title>
+    <title>Missing Women Noise Dashboard</title>
 
     <style>
+      :root {
+        --bg: #eef2f7;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --dark: #0f172a;
+        --green: #16a34a;
+        --orange: #f97316;
+        --blue: #2563eb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui;
-        margin: 20px;
-        background: #f8fafc;
-        color: #111827;
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
       }
 
-      h1 {
-        margin-bottom: 10px;
+      .shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 18px;
       }
 
-      .filters {
+      .hero {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: white;
+        border-radius: 22px;
+        padding: 20px;
+        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
         margin-bottom: 16px;
       }
 
-      select {
-        padding: 8px;
-        border-radius: 8px;
-        border: 1px solid #ddd;
+      .hero-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: flex-start;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 24px;
+        letter-spacing: -0.03em;
+      }
+
+      .subtitle {
+        color: #cbd5e1;
+        font-size: 13px;
+        line-height: 1.4;
+        margin: 0;
+      }
+
+      .header-action {
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border-radius: 999px;
+        padding: 10px 13px;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .stat {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        padding: 12px;
+      }
+
+      .stat .label {
+        color: #cbd5e1;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      .stat .value {
+        font-weight: 900;
+        font-size: 20px;
+      }
+
+      .toolbar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        margin-bottom: 14px;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      select,
+      input {
+        width: 100%;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        font-size: 14px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      .helper {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
       }
 
       .card {
-        background: white;
-        border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 12px;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 14px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
       }
 
-      .meta {
+      .log-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        margin-bottom: 10px;
+      }
+
+      .day-badge {
+        background: #dcfce7;
+        color: #166534;
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 11px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .title {
+        font-weight: 900;
+        font-size: 15px;
+        margin-bottom: 3px;
+      }
+
+      .time {
+        color: var(--muted);
         font-size: 12px;
-        color: #6b7280;
-        margin-bottom: 6px;
       }
 
-      img {
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+
+      .chip {
+        background: #f1f5f9;
+        color: #334155;
+        border-radius: 999px;
+        padding: 6px 9px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .chip.address {
+        border-radius: 12px;
+        max-width: 100%;
+        line-height: 1.35;
+      }
+
+      .note {
+        background: #fff7ed;
+        color: #7c2d12;
+        border-radius: 12px;
+        padding: 10px;
+        font-size: 13px;
+        margin: 10px 0;
+        white-space: pre-wrap;
+      }
+
+      .photo {
+        display: block;
         width: 100%;
-        max-width: 280px;
-        border-radius: 10px;
-        margin-top: 6px;
+        max-height: 360px;
+        object-fit: cover;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        margin-top: 10px;
+        background: #f8fafc;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .link-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        border-radius: 999px;
+        padding: 9px 12px;
+        font-size: 12px;
+        font-weight: 900;
+        color: white;
+        background: var(--dark);
+      }
+
+      .link-btn.map {
+        background: var(--blue);
+      }
+
+      .empty,
+      .error {
+        text-align: center;
+        padding: 28px 18px;
+        color: var(--muted);
+      }
+
+      .error {
+        color: #991b1b;
+      }
+
+      @media (min-width: 720px) {
+        .shell {
+          padding: 24px;
+        }
+
+        .stats {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .filters {
+          grid-template-columns: 180px 1fr 180px;
+          align-items: center;
+        }
+
+        .list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
     </style>
   </head>
   <body>
-    <h1>Noise Logs Dashboard</h1>
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>Noise Logs Dashboard</h1>
+            <p class="subtitle">
+              Live field logs with GPS, min/max dB readings, notes, and photos.
+            </p>
+          </div>
+          <div class="hero-actions">
+            <button class="header-action" onclick="downloadCsv()">
+              Download CSV
+            </button>
+            <button class="header-action" onclick="reloadDashboard()">
+              Refresh
+            </button>
+          </div>
+        </div>
 
-    <div class="filters">
-      <select id="dayFilter">
-        <option value="">All Days</option>
-      </select>
-    </div>
+        <div class="stats">
+          <div class="stat">
+            <div class="label">Total logs</div>
+            <div class="value" id="totalLogs">--</div>
+          </div>
+          <div class="stat">
+            <div class="label">With photos</div>
+            <div class="value" id="photoLogs">--</div>
+          </div>
+          <div class="stat">
+            <div class="label">Max dB seen</div>
+            <div class="value" id="maxDbSeen">--</div>
+          </div>
+          <div class="stat">
+            <div class="label">Active days</div>
+            <div class="value" id="activeDays">--</div>
+          </div>
+        </div>
+      </section>
 
-    <div id="list"></div>
+      <section class="toolbar">
+        <div class="filters">
+          <select id="dayFilter">
+            <option value="">All Days</option>
+          </select>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Search trip, note, day..."
+          />
+          <select id="photoFilter">
+            <option value="">All Logs</option>
+            <option value="with-photo">With Photo</option>
+            <option value="without-photo">Without Photo</option>
+          </select>
+        </div>
+        <div class="helper" id="resultInfo">Loading logs...</div>
+      </section>
+
+      <section id="list" class="list"></section>
+    </main>
 
     <script>
       const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
-      const SUPABASE_KEY = "PASTE_ANON_KEY";
+      const SUPABASE_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
+
+      let allLogs = [];
+      const addressCacheKey = "missingWomenAddressCache";
+      let addressCache = loadAddressCache();
+
+      function loadAddressCache() {
+        try {
+          return JSON.parse(localStorage.getItem(addressCacheKey) || "{}");
+        } catch {
+          return {};
+        }
+      }
+
+      function saveAddressCache() {
+        localStorage.setItem(addressCacheKey, JSON.stringify(addressCache));
+      }
+
+      function coordinateKey(lat, lng) {
+        return `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function csvEscape(value) {
+        const text = String(value ?? "");
+        return `"${text.replaceAll('"', '""')}"`;
+      }
 
       async function fetchLogs() {
         const res = await fetch(
@@ -75,56 +398,253 @@
           },
         );
 
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Supabase fetch failed: ${res.status} ${text}`);
+        }
+
         return res.json();
       }
 
-      function render(logs) {
-        const day = document.getElementById("dayFilter").value;
+      function photoSrc(log) {
+        return log.photo_url || log.photo_data_url || "";
+      }
 
-        const filtered = day ? logs.filter((l) => l.day == day) : logs;
+      function getAddressForLog(log) {
+        if (!log.latitude || !log.longitude) return "No GPS";
+        const key = coordinateKey(log.latitude, log.longitude);
+        return addressCache[key] || `${log.latitude}, ${log.longitude}`;
+      }
 
-        document.getElementById("list").innerHTML = filtered
-          .map(
-            (l) => `
-      <div class="card">
-        <div><strong>Day ${l.day}</strong></div>
-        <div>${l.title}</div>
+      async function reverseGeocode(lat, lng) {
+        const key = coordinateKey(lat, lng);
+        if (addressCache[key]) return addressCache[key];
 
-        <div class="meta">
-          ${new Date(l.captured_at).toLocaleString()}<br>
-          dB: ${l.min_db} - ${l.max_db}<br>
-          ${l.latitude}, ${l.longitude}
-        </div>
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`,
+          {
+            headers: {
+              Accept: "application/json",
+            },
+          },
+        );
 
-        ${l.note ? `<div>${l.note}</div>` : ""}
+        if (!res.ok) return null;
 
-        ${l.photo_url ? `<img src="${l.photo_url}" />` : ""}
-      </div>
-    `,
-          )
-          .join("");
+        const data = await res.json();
+        const address = data.display_name || null;
+
+        if (address) {
+          addressCache[key] = address;
+          saveAddressCache();
+        }
+
+        return address;
+      }
+
+      async function hydrateAddresses(logs) {
+        const uniqueCoordinates = [];
+        const seen = new Set();
+
+        logs.forEach((log) => {
+          if (!log.latitude || !log.longitude) return;
+          const key = coordinateKey(log.latitude, log.longitude);
+          if (addressCache[key] || seen.has(key)) return;
+          seen.add(key);
+          uniqueCoordinates.push({ lat: log.latitude, lng: log.longitude });
+        });
+
+        for (const coord of uniqueCoordinates.slice(0, 40)) {
+          try {
+            await reverseGeocode(coord.lat, coord.lng);
+            await new Promise((resolve) => setTimeout(resolve, 1100));
+          } catch (err) {
+            console.warn("Address lookup failed", err);
+          }
+        }
+      }
+
+      function updateStats(logs) {
+        const days = [...new Set(logs.map((l) => l.day).filter(Boolean))];
+        const maxDb = logs.reduce(
+          (max, l) => Math.max(max, Number(l.max_db || 0)),
+          0,
+        );
+        const photos = logs.filter((l) => photoSrc(l)).length;
+
+        document.getElementById("totalLogs").textContent = logs.length;
+        document.getElementById("photoLogs").textContent = photos;
+        document.getElementById("maxDbSeen").textContent = maxDb ? maxDb : "--";
+        document.getElementById("activeDays").textContent = days.length;
       }
 
       function setupFilter(logs) {
-        const days = [...new Set(logs.map((l) => l.day))];
-
         const select = document.getElementById("dayFilter");
+        const days = [...new Set(logs.map((l) => l.day).filter(Boolean))].sort(
+          (a, b) => a - b,
+        );
 
+        select.innerHTML = `<option value="">All Days</option>`;
         days.forEach((d) => {
           const opt = document.createElement("option");
           opt.value = d;
           opt.textContent = `Day ${d}`;
           select.appendChild(opt);
         });
-
-        select.onchange = () => render(logs);
       }
 
-      (async function init() {
-        const logs = await fetchLogs();
-        setupFilter(logs);
-        render(logs);
-      })();
+      function filteredLogs() {
+        const day = document.getElementById("dayFilter").value;
+        const search = document
+          .getElementById("searchInput")
+          .value.trim()
+          .toLowerCase();
+        const photoFilter = document.getElementById("photoFilter").value;
+
+        return allLogs.filter((log) => {
+          const matchesDay = day ? String(log.day) === String(day) : true;
+          const combined =
+            `${log.day || ""} ${log.title || ""} ${log.note || ""} ${log.min_db || ""} ${log.max_db || ""}`.toLowerCase();
+          const matchesSearch = search ? combined.includes(search) : true;
+          const hasPhoto = Boolean(photoSrc(log));
+          const matchesPhoto =
+            photoFilter === "with-photo"
+              ? hasPhoto
+              : photoFilter === "without-photo"
+                ? !hasPhoto
+                : true;
+
+          return matchesDay && matchesSearch && matchesPhoto;
+        });
+      }
+
+      function render() {
+        const logs = filteredLogs();
+        const list = document.getElementById("list");
+        document.getElementById("resultInfo").textContent =
+          `${logs.length} log${logs.length === 1 ? "" : "s"} shown`;
+
+        if (!logs.length) {
+          list.innerHTML = `<div class="card empty">No logs found for the selected filters.</div>`;
+          return;
+        }
+
+        list.innerHTML = logs
+          .map((l) => {
+            const src = photoSrc(l);
+            const mapUrl =
+              l.latitude && l.longitude
+                ? `https://www.google.com/maps?q=${encodeURIComponent(`${l.latitude},${l.longitude}`)}`
+                : "";
+
+            return `
+              <article class="card">
+                <div class="log-head">
+                  <div>
+                    <div class="title">${escapeHtml(l.title || "Untitled Trip")}</div>
+                    <div class="time">${l.captured_at ? new Date(l.captured_at).toLocaleString() : "No timestamp"}</div>
+                  </div>
+                  <div class="day-badge">Day ${escapeHtml(l.day || "--")}</div>
+                </div>
+
+                <div class="chips">
+                  <span class="chip">Min ${escapeHtml(l.min_db ?? "--")} dB</span>
+                  <span class="chip">Max ${escapeHtml(l.max_db ?? "--")} dB</span>
+                  <span class="chip address">${escapeHtml(getAddressForLog(l))}</span>
+                </div>
+
+                ${l.note ? `<div class="note">${escapeHtml(l.note)}</div>` : ""}
+                ${src ? `<a href="${src}" target="_blank" rel="noopener"><img class="photo" src="${src}" alt="Noise log photo" loading="lazy" /></a>` : ""}
+
+                <div class="actions">
+                  ${src ? `<a class="link-btn" href="${src}" target="_blank" rel="noopener">Open Photo</a>` : ""}
+                  ${mapUrl ? `<a class="link-btn map" href="${mapUrl}" target="_blank" rel="noopener">Open Map</a>` : ""}
+                  ${l.latitude && l.longitude ? `<span class="chip">${escapeHtml(l.latitude)}, ${escapeHtml(l.longitude)}</span>` : ""}
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function downloadCsv() {
+        const logs = filteredLogs();
+
+        if (!logs.length) {
+          alert("No logs available to download for the selected filters.");
+          return;
+        }
+
+        const headers = [
+          "day",
+          "trip_title",
+          "captured_at",
+          "min_db",
+          "max_db",
+          "latitude",
+          "longitude",
+          "address",
+          "note",
+          "photo_url",
+        ];
+
+        const rows = logs.map((log) => [
+          log.day,
+          log.title,
+          log.captured_at,
+          log.min_db,
+          log.max_db,
+          log.latitude,
+          log.longitude,
+          getAddressForLog(log),
+          log.note,
+          photoSrc(log),
+        ]);
+
+        const csv = [
+          headers.map(csvEscape).join(","),
+          ...rows.map((row) => row.map(csvEscape).join(",")),
+        ].join("\n");
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const stamp = new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/[:T]/g, "-");
+
+        link.href = url;
+        link.download = `missing-women-noise-logs-${stamp}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      async function reloadDashboard() {
+        document.getElementById("list").innerHTML =
+          `<div class="card empty">Loading logs...</div>`;
+        try {
+          allLogs = await fetchLogs();
+          setupFilter(allLogs);
+          updateStats(allLogs);
+          render();
+          hydrateAddresses(allLogs).then(render);
+        } catch (err) {
+          console.error(err);
+          document.getElementById("list").innerHTML =
+            `<div class="card error">${escapeHtml(err.message)}</div>`;
+          document.getElementById("resultInfo").textContent =
+            "Unable to load logs";
+        }
+      }
+
+      document.getElementById("dayFilter").addEventListener("change", render);
+      document.getElementById("searchInput").addEventListener("input", render);
+      document.getElementById("photoFilter").addEventListener("change", render);
+
+      reloadDashboard();
     </script>
   </body>
 </html>
