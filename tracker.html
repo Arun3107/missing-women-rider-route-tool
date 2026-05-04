@@ -1,0 +1,664 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Day Tracker</title>
+
+    <style>
+      :root {
+        --bg: #eef2f7;
+        --panel: #ffffff;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --line: #e2e8f0;
+        --soft: #f8fafc;
+        --brand: #2563eb;
+        --brand-dark: #1d4ed8;
+        --green: #16a34a;
+        --amber: #f59e0b;
+        --red: #dc2626;
+        --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        margin: 0;
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(37, 99, 235, 0.12),
+            transparent 32rem
+          ),
+          var(--bg);
+        color: var(--ink);
+      }
+
+      .wrap {
+        width: min(96vw, 1800px);
+        max-width: none;
+        margin: auto;
+        padding: 22px;
+      }
+
+      .hero {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: white;
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+        margin-bottom: 18px;
+      }
+
+      .hero-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 28px;
+        line-height: 1.1;
+        letter-spacing: -0.04em;
+      }
+
+      .subtitle {
+        color: #cbd5e1;
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .hero-pill {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        padding: 9px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .stat {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 18px;
+        padding: 14px;
+      }
+
+      .stat-label {
+        font-size: 11px;
+        color: #cbd5e1;
+        margin-bottom: 6px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: 950;
+        letter-spacing: -0.04em;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-head {
+        padding: 16px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(248, 250, 252, 0.8);
+      }
+
+      .panel-title {
+        font-weight: 900;
+        font-size: 15px;
+      }
+
+      .panel-note {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .table-scroll {
+        overflow-x: visible;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: white;
+      }
+
+      th,
+      td {
+        padding: 12px 12px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #0f172a;
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      tbody tr:hover {
+        background: #f8fafc;
+      }
+
+      .day-cell {
+        font-weight: 950;
+        font-size: 16px;
+      }
+
+      .route-cell {
+        min-width: 320px;
+        max-width: 520px;
+        line-height: 1.5;
+        color: #334155;
+        font-weight: 650;
+      }
+
+      .num-pill,
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-weight: 900;
+        background: #eff6ff;
+        color: #1d4ed8;
+        white-space: nowrap;
+      }
+
+      .status-pill.good {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status-pill.warn {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .status-pill.bad {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      .planned-metric {
+        font-weight: 900;
+        color: #111827;
+        white-space: nowrap;
+      }
+
+      .time-muted {
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-width: 110px;
+        padding: 9px 10px;
+        border: 1px solid #dbe3ee;
+        border-radius: 10px;
+        font-size: 12px;
+        background: #ffffff;
+        color: #334155;
+        outline: none;
+        font-weight: 600;
+      }
+
+      input::placeholder {
+        color: #cbd5e1;
+        font-weight: 500;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      }
+
+      .covered-input {
+        min-width: 260px;
+      }
+
+      td:nth-child(6),
+      td:nth-child(10) {
+        width: 96px;
+        min-width: 96px;
+        max-width: 96px;
+      }
+
+      td:nth-child(6) input,
+      td:nth-child(10) input {
+        min-width: 76px;
+        width: 76px;
+        text-align: center;
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+
+      td:nth-child(9),
+      td:nth-child(11) {
+        min-width: 130px;
+      }
+
+      .save-indicator {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        background: #0f172a;
+        color: white;
+        padding: 10px 13px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: all 0.2s ease;
+        pointer-events: none;
+      }
+
+      .save-indicator.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      @media (min-width: 760px) {
+        .stats {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wrap {
+          padding: 14px;
+        }
+
+        .hero {
+          border-radius: 20px;
+          padding: 18px;
+        }
+
+        h1 {
+          font-size: 24px;
+        }
+
+        .panel-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <div class="hero-row">
+          <div>
+            <h1>Day Tracker</h1>
+            <p class="subtitle">
+              Operations view for planned route execution, field coverage,
+              mileage, end time, and cloud upload status.
+            </p>
+          </div>
+          <div class="hero-pill">Auto-saves enabled</div>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Planned KM</div>
+            <div class="stat-value" id="statPlannedKm">--</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Covered KM</div>
+            <div class="stat-value" id="statCoveredKm">--</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Planned Itineraries</div>
+            <div class="stat-value" id="statPlannedItineraries">--</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Covered Itineraries</div>
+            <div class="stat-value" id="statCoveredItineraries">--</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Execution Tracker</div>
+            <div class="panel-note">
+              Auto fields come from plan and noise logs. Manual fields save
+              automatically after edits.
+            </div>
+          </div>
+          <div class="panel-note" id="lastLoaded">Loading...</div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Planned Itineraries</th>
+                <th>Count</th>
+                <th>KM Planned</th>
+                <th>Time Planned</th>
+                <th>Start Time</th>
+                <th>Covered</th>
+                <th>Pending</th>
+                <th>KM Covered</th>
+                <th>End Time</th>
+                <th>Upload</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <div id="saveIndicator" class="save-indicator">Auto-saved</div>
+
+    <script>
+      const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
+      const SUPABASE_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
+
+      async function fetchPlan() {
+        const res = await fetch("/plan.json");
+        return res.json();
+      }
+
+      async function fetchTracker() {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/day_tracker?select=*`,
+          {
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+            },
+          },
+        );
+        return res.json();
+      }
+
+      async function fetchLogs() {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/noise_logs?select=*`, {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+          },
+        });
+        return res.json();
+      }
+
+      function formatTime24(value) {
+        if (!value) return "";
+
+        const raw = String(value).trim();
+
+        if (/^\d{1,2}:\d{2}$/.test(raw)) {
+          const [hour, minute] = raw.split(":");
+          return `${hour.padStart(2, "0")}:${minute}`;
+        }
+
+        const date = new Date(raw);
+        if (!Number.isNaN(date.getTime())) {
+          return date.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+        }
+
+        return raw;
+      }
+
+      function buildRows(plan, tracker, logs) {
+        let totalCoveredCount = 0;
+        let totalPlannedItineraries = 0;
+        const byDayLogs = {};
+        logs.forEach((l) => {
+          if (!byDayLogs[l.day]) byDayLogs[l.day] = [];
+          byDayLogs[l.day].push(l);
+        });
+
+        const rowsHtml = plan.days
+          .map((d) => {
+            // Group planned parts by itineraryId
+            const itineraryParts = {};
+            d.trips.forEach((t) => {
+              const id = String(t.itineraryId);
+              const part = String(t.part);
+              if (!itineraryParts[id]) itineraryParts[id] = new Set();
+              itineraryParts[id].add(part);
+            });
+
+            function formatItineraryPart(id, part) {
+              const plannedParts = itineraryParts[String(id)] || new Set();
+              if (plannedParts.size === 1 && plannedParts.has("1")) {
+                return String(id); // only part 1 exists in plan → no .1
+              }
+              return `${id}.${part}`;
+            }
+
+            // Format planned itineraries
+            const itineraries = Object.entries(itineraryParts).flatMap(
+              ([id, partsSet]) => {
+                const parts = Array.from(partsSet).sort(
+                  (a, b) => Number(a) - Number(b),
+                );
+                return parts.map((p) => formatItineraryPart(id, p));
+              },
+            );
+
+            const plannedCount = itineraries.length;
+            totalPlannedItineraries += plannedCount;
+            const plannedKm =
+              d.googleRoadKm ||
+              d.actualDayKm ||
+              d.estimatedCoverageKm ||
+              d.totalKm ||
+              d.distanceKm ||
+              d.km ||
+              "--";
+            const plannedTime =
+              d.googleDurationText ||
+              d.totalTime ||
+              d.duration ||
+              d.time ||
+              "--";
+
+            // Build covered map from noise logs (deduplicated)
+            const coveredPartsMap = {};
+
+            (byDayLogs[d.day] || []).forEach((l) => {
+              const id = String(l.itinerary_id);
+              const part = String(l.part || "1");
+              if (!coveredPartsMap[id]) coveredPartsMap[id] = new Set();
+              coveredPartsMap[id].add(part);
+            });
+
+            const covered = Object.entries(coveredPartsMap).flatMap(
+              ([id, partsSet]) => {
+                const parts = Array.from(partsSet).sort(
+                  (a, b) => Number(a) - Number(b),
+                );
+                return parts.map((p) => formatItineraryPart(id, p));
+              },
+            );
+
+            const coveredSet = new Set(covered);
+
+            const t = tracker.find((x) => x.day == d.day) || {};
+
+            const pending = itineraries.filter((i) => !coveredSet.has(i));
+            totalCoveredCount += covered.length;
+            const pendingClass =
+              pending.length === 0
+                ? "good"
+                : pending.length <= 2
+                  ? "warn"
+                  : "bad";
+
+            return `
+      <tr>
+        <td class="day-cell">Day ${d.day}</td>
+        <td class="route-cell">${itineraries.join(" → ")}</td>
+        <td><span class="num-pill">${plannedCount}</span></td>
+        <td><span class="planned-metric">${Number(plannedKm).toFixed ? Number(plannedKm).toFixed(1) : plannedKm} km</span></td>
+        <td><span class="time-muted">${plannedTime}</span></td>
+        <td><input value="${formatTime24(t.start_time)}" data-field="start" data-day="${d.day}" onchange="autoSave(${d.day})" placeholder="08:30" maxlength="5" /></td>
+        <td><input class="covered-input" value="${covered.join(",")}" data-field="covered" data-day="${d.day}" onchange="autoSave(${d.day})"/></td>
+        <td><span class="status-pill ${pendingClass}">${pending.length}</span></td>
+        <td><input value="${t.km_covered || ""}" data-field="km" data-day="${d.day}" onchange="autoSave(${d.day})"/></td>
+        <td><input value="${formatTime24(t.end_time)}" data-field="end" data-day="${d.day}" onchange="autoSave(${d.day})" placeholder="18:55" maxlength="5" /></td>
+        <td>
+          <select class="upload-select" data-field="upload" data-day="${d.day}" onchange="autoSave(${d.day})">
+            <option ${t.cloud_upload_done == "No" ? "selected" : ""}>No</option>
+            <option ${t.cloud_upload_done == "Yes" ? "selected" : ""}>Yes</option>
+          </select>
+        </td>
+      </tr>
+    `;
+          })
+          .join("");
+
+        const totalPlannedKm = plan.days.reduce(
+          (sum, d) =>
+            sum +
+            Number(
+              d.googleRoadKm || d.actualDayKm || d.estimatedCoverageKm || 0,
+            ),
+          0,
+        );
+
+        const totalCoveredKm = tracker.reduce(
+          (sum, row) => sum + Number(row.km_covered || 0),
+          0,
+        );
+
+        document.getElementById("statPlannedKm").textContent =
+          Math.round(totalPlannedKm);
+        document.getElementById("statCoveredKm").textContent =
+          Math.round(totalCoveredKm);
+        document.getElementById("statPlannedItineraries").textContent =
+          totalPlannedItineraries;
+        document.getElementById("statCoveredItineraries").textContent =
+          totalCoveredCount;
+        document.getElementById("lastLoaded").textContent =
+          `Loaded ${new Date().toLocaleTimeString()}`;
+
+        return rowsHtml;
+      }
+
+      const debounceTimers = {};
+
+      function autoSave(day) {
+        if (debounceTimers[day]) {
+          clearTimeout(debounceTimers[day]);
+        }
+
+        debounceTimers[day] = setTimeout(() => {
+          saveRow(day);
+        }, 500);
+      }
+
+      async function saveRow(day) {
+        const inputs = document.querySelectorAll(`[data-day='${day}']`);
+        const payload = { day };
+
+        inputs.forEach((i) => {
+          if (i.dataset.field === "covered")
+            payload.itineraries_covered = i.value;
+          if (i.dataset.field === "start") payload.start_time = i.value;
+          if (i.dataset.field === "km") payload.km_covered = i.value;
+          if (i.dataset.field === "end") payload.end_time = i.value;
+          if (i.dataset.field === "upload") payload.cloud_upload_done = i.value;
+        });
+
+        await fetch(`${SUPABASE_URL}/rest/v1/day_tracker?on_conflict=day`, {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        console.log("Auto-saved", day);
+        showSaveIndicator(`Day ${day} auto-saved`);
+      }
+
+      function showSaveIndicator(message) {
+        const el = document.getElementById("saveIndicator");
+        el.textContent = message;
+        el.classList.add("show");
+        setTimeout(() => el.classList.remove("show"), 1400);
+      }
+
+      (async function () {
+        const [plan, tracker, logs] = await Promise.all([
+          fetchPlan(),
+          fetchTracker(),
+          fetchLogs(),
+        ]);
+
+        document.getElementById("rows").innerHTML = buildRows(
+          plan,
+          tracker,
+          logs,
+        );
+      })();
+    </script>
+  </body>
+</html>
