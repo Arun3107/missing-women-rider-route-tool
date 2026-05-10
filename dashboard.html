@@ -542,8 +542,8 @@
           },
           metricChips(log) {
             return `
-              <span class="chip">Min ${escapeHtml(log.min_db ?? "--")} dB</span>
-              <span class="chip">Max ${escapeHtml(log.max_db ?? "--")} dB</span>
+              <span class="chip">Min dB: ${escapeHtml(log.min_db ?? "--")}</span>
+              <span class="chip">Max dB: ${escapeHtml(log.max_db ?? "--")}</span>
             `;
           },
           maxMetric(logs) {
@@ -600,8 +600,8 @@
           },
           metricChips(log) {
             return `
-              <span class="chip">PM 2.5 ${escapeHtml(log.pm25 ?? "--")}</span>
-              <span class="chip">CO ${escapeHtml(log.co ?? "--")}</span>
+              <span class="chip">PM 2.5: ${escapeHtml(log.pm25 ?? "--")}</span>
+              <span class="chip">CO: ${escapeHtml(log.co ?? "--")}</span>
             `;
           },
           maxMetric(logs) {
