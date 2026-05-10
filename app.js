@@ -7,6 +7,8 @@ const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
 const SUPABASE_NOISE_TABLE = "noise_logs";
 const SUPABASE_PHOTO_BUCKET = "noise-photos";
+const SUPABASE_POLLUTION_TABLE = "pollution_logs";
+const SUPABASE_POLLUTION_BUCKET = "pollution-photos";
 
 function isSupabaseReady() {
   return (
@@ -75,6 +77,48 @@ async function saveNoiseLogToSupabase(entry) {
   return { saved: true };
 }
 
+async function savePollutionLogToSupabase(entry) {
+  if (!isSupabaseReady()) return { skipped: true };
+
+  const payload = {
+    day: entry.day,
+    itinerary_id: String(entry.itineraryId),
+    part: String(entry.part),
+    title: entry.title,
+    captured_at: entry.timestamp,
+    pm25: entry.pm25,
+    co: entry.co,
+    note: entry.note,
+    latitude: entry.lat,
+    longitude: entry.lng,
+    photo_name: entry.photoName,
+    photo_type: entry.photoType,
+    photo_url: entry.photoUrl,
+    photo_path: entry.photoPath,
+  };
+
+  const res = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${SUPABASE_POLLUTION_TABLE}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Supabase pollution save failed: ${res.status} ${text}`);
+  }
+
+  return { saved: true };
+}
+
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(",");
   const mime = header.match(/:(.*?);/)?.[1] || "image/jpeg";
@@ -122,6 +166,45 @@ async function uploadNoisePhotoToSupabase(entry, dataUrl) {
   return {
     photoPath: filePath,
     photoUrl: `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${SUPABASE_PHOTO_BUCKET}/${filePath}`,
+  };
+}
+
+async function uploadPollutionPhotoToSupabase(entry, dataUrl) {
+  if (!isSupabaseReady() || !dataUrl) return null;
+
+  const blob = dataUrlToBlob(dataUrl);
+  const safeTitle = String(entry.title || "trip")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  const fileName = `${Date.now()}-day-${entry.day}-${safeTitle || "pollution"}.jpg`;
+  const filePath = `day-${entry.day}/${fileName}`;
+
+  const uploadRes = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/${SUPABASE_POLLUTION_BUCKET}/${filePath}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "image/jpeg",
+        "x-upsert": "false",
+      },
+      body: blob,
+    },
+  );
+
+  if (!uploadRes.ok) {
+    const text = await uploadRes.text();
+    throw new Error(
+      `Pollution photo upload failed: ${uploadRes.status} ${text}`,
+    );
+  }
+
+  return {
+    photoPath: filePath,
+    photoUrl: `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/public/${SUPABASE_POLLUTION_BUCKET}/${filePath}`,
   };
 }
 
@@ -215,10 +298,11 @@ function render() {
                 ${t.googleDurationText ? `<span>${t.googleDurationText}</span>` : ""}
               </div>
 
-              <div class="actions">
-                <a class="btn nav" href="${t.navigationUrl}" target="_blank">Navigate</a>
-                <button class="btn noise" onclick='openNoise(${JSON.stringify({ day: d.day, itineraryId: t.itineraryId, part: t.part, title: t.title })})'>Noise</button>
-              </div>
+              <div class="actions" style="display:grid;grid-template-columns:1fr 44px 44px;gap:10px;align-items:center">
+  <a class="btn nav" href="${t.navigationUrl}" target="_blank">Navigate</a>
+  <button class="btn noise" style="border-radius:999px;width:44px;height:44px;min-width:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:18px" title="Record Noise" onclick='openNoise(${JSON.stringify({ day: d.day, itineraryId: t.itineraryId, part: t.part, title: t.title })})'>N</button>
+  <button class="btn pollution" style="border-radius:999px;width:44px;height:44px;min-width:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:#7c3aed;color:white" title="Record Pollution" onclick='openPollution(${JSON.stringify({ day: d.day, itineraryId: t.itineraryId, part: t.part, title: t.title })})'>P</button>
+</div>
             </article>
           `;
         })
@@ -228,7 +312,7 @@ function render() {
     )
     .join("");
   document.querySelector("#app").innerHTML =
-    `<div class="app"><header class="topbar"><div><h1>Missing Women Rider Routes</h1><p>Fixed 15-day plan - Current Location continues from the rider’s actual position</p></div><button class="export-link" onclick="exportNoiseLogs()">Export Report</button></header><div class="day-list">${days}</div></div>${noisePanel()}<div id="toast" class="toast hidden"></div>`;
+    `<div class="app"><header class="topbar"><div><h1>Missing Women Rider Routes</h1><p>Fixed 15-day plan - Current Location continues from the rider’s actual position</p></div><button class="export-link" onclick="exportNoiseLogs()">Export Report</button></header><div class="day-list">${days}</div></div>${noisePanel()}${pollutionPanel()}<div id="toast" class="toast hidden"></div>`;
 }
 function toggleDay(day) {
   state.openDay = state.openDay === day ? null : day;
@@ -236,6 +320,10 @@ function toggleDay(day) {
 }
 function noisePanel() {
   return `<div id="noisePanel" class="noise-panel"><h2>Record Noise</h2><div class="small" id="noiseTrip"></div><div class="field"><label>Min dB (required)</label><input id="minDb" inputmode="decimal" placeholder="Example: 60"></div><div class="field"><label>Max dB (required)</label><input id="maxDb" inputmode="decimal" placeholder="Example: 85"></div><div class="field"><label>Photo (optional)</label><input id="noisePhoto" type="file" accept="image/*" capture="environment"></div><div class="field"><label>Note (optional)</label><textarea id="note" rows="3" placeholder="Add note"></textarea></div><div class="panel-actions"><button class="btn complete" onclick="closeNoise()">Cancel</button><button class="btn nav" onclick="saveNoise()">Save Log</button></div></div>`;
+}
+
+function pollutionPanel() {
+  return `<div id="pollutionPanel" class="noise-panel"><h2>Record Pollution</h2><div class="small" id="pollutionTrip"></div><div class="field"><label>PM 2.5 (required)</label><input id="pm25" inputmode="decimal" placeholder="Example: 120"></div><div class="field"><label>CO (required)</label><input id="co" inputmode="decimal" placeholder="Example: 1.2"></div><div class="field"><label>Upload Image (optional)</label><input id="pollutionPhoto" type="file" accept="image/*" capture="environment"></div><div class="field"><label>Note (optional)</label><textarea id="pollutionNote" rows="3" placeholder="Add note"></textarea></div><div class="panel-actions"><button class="btn complete" onclick="closePollution()">Cancel</button><button class="btn nav" onclick="savePollution()">Save Log</button></div></div>`;
 }
 function openNoise(trip) {
   state.currentTrip = trip;
@@ -246,8 +334,22 @@ function openNoise(trip) {
   $("#note").value = "";
   $("#noisePhoto").value = "";
 }
+
+function openPollution(trip) {
+  state.currentTrip = trip;
+  $("#pollutionPanel").classList.add("open");
+  $("#pollutionTrip").textContent = `Day ${trip.day} - ${trip.title}`;
+  $("#pm25").value = "";
+  $("#co").value = "";
+  $("#pollutionNote").value = "";
+  $("#pollutionPhoto").value = "";
+}
 function closeNoise() {
   $("#noisePanel").classList.remove("open");
+}
+
+function closePollution() {
+  $("#pollutionPanel").classList.remove("open");
 }
 
 function resizeImageToDataUrl(file, maxWidth = 640, quality = 0.55) {
@@ -494,6 +596,101 @@ function saveNoise() {
       .catch((err) => {
         console.error(err);
         showToast("Photo could not be saved");
+      });
+  } else {
+    persistWithLocation();
+  }
+}
+
+function savePollution() {
+  const trip = state.currentTrip;
+  if (!trip) return;
+
+  const photoInput = $("#pollutionPhoto");
+  const photoFile = photoInput?.files?.[0] || null;
+
+  const pm25 = $("#pm25").value;
+  const co = $("#co").value;
+
+  if (!pm25 || !co) {
+    showToast("Enter PM 2.5 and CO");
+    return;
+  }
+
+  if (Number.isNaN(Number(pm25)) || Number.isNaN(Number(co))) {
+    showToast("PM 2.5 and CO must be numbers");
+    return;
+  }
+
+  const entry = {
+    ...trip,
+    timestamp: new Date().toISOString(),
+    pm25: Number(pm25),
+    co: Number(co),
+    note: $("#pollutionNote").value || null,
+    photoName: photoFile ? photoFile.name : null,
+    photoType: photoFile ? photoFile.type : null,
+    photoDataUrl: null,
+    photoUrl: null,
+    photoPath: null,
+    lat: null,
+    lng: null,
+  };
+
+  const persist = async () => {
+    try {
+      if (entry.photoDataUrl) {
+        const uploadedPhoto = await uploadPollutionPhotoToSupabase(
+          entry,
+          entry.photoDataUrl,
+        );
+        if (uploadedPhoto) {
+          entry.photoUrl = uploadedPhoto.photoUrl;
+          entry.photoPath = uploadedPhoto.photoPath;
+          entry.photoDataUrl = null;
+        }
+      }
+
+      await savePollutionLogToSupabase(entry);
+      closePollution();
+      showToast(
+        isSupabaseReady()
+          ? "Pollution log saved to Supabase"
+          : "Pollution log saved locally",
+      );
+    } catch (err) {
+      console.error(err);
+      closePollution();
+      alert(`Pollution save failed:\n\n${err.message}`);
+    }
+  };
+
+  const persistWithLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          entry.lat = pos.coords.latitude;
+          entry.lng = pos.coords.longitude;
+          persist();
+        },
+        () => persist(),
+        { enableHighAccuracy: true, timeout: 8000 },
+      );
+    } else {
+      persist();
+    }
+  };
+
+  if (photoFile) {
+    showToast("Compressing pollution photo...");
+    resizeImageToDataUrl(photoFile)
+      .then((dataUrl) => {
+        entry.photoDataUrl = dataUrl;
+        persistWithLocation();
+      })
+      .catch((err) => {
+        console.error(err);
+        showToast("Pollution photo could not be saved");
       });
   } else {
     persistWithLocation();

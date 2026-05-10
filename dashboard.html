@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Missing Women Noise Dashboard</title>
+    <title>Missing Women Logs Dashboard</title>
 
     <style>
       :root {
@@ -61,6 +61,23 @@
         gap: 8px;
         flex-wrap: wrap;
         justify-content: flex-end;
+      }
+
+      .type-select {
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border-radius: 999px;
+        padding: 10px 13px;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .type-select option {
+        color: #0f172a;
+        background: white;
       }
 
       h1 {
@@ -238,6 +255,111 @@
         margin-top: 10px;
       }
 
+      .card-actions-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 10px;
+      }
+
+      .edit-btn {
+        border: 0;
+        background: #0f172a;
+        color: white;
+        border-radius: 999px;
+        padding: 9px 13px;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: pointer;
+        margin-left: auto;
+      }
+
+      .edit-panel-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.52);
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        z-index: 9999;
+        padding: 14px;
+      }
+
+      .edit-panel-backdrop.open {
+        display: flex;
+      }
+
+      .edit-panel {
+        width: min(100%, 520px);
+        background: white;
+        border-radius: 20px;
+        padding: 16px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+      }
+
+      .edit-panel h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+
+      .edit-subtitle {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 14px;
+      }
+
+      .edit-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .edit-field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+        margin-bottom: 5px;
+        color: #334155;
+      }
+
+      .edit-field textarea {
+        width: 100%;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        font-size: 14px;
+        resize: vertical;
+        min-height: 86px;
+        font-family: inherit;
+      }
+
+      .edit-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 14px;
+      }
+
+      .edit-actions button {
+        border: 0;
+        border-radius: 999px;
+        padding: 11px 15px;
+        font-size: 13px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .cancel-edit {
+        background: #e5e7eb;
+        color: #0f172a;
+      }
+
+      .save-edit {
+        background: #16a34a;
+        color: white;
+      }
+
       .link-btn {
         display: inline-flex;
         align-items: center;
@@ -291,12 +413,20 @@
       <section class="hero">
         <div class="hero-top">
           <div>
-            <h1>Noise Logs Dashboard</h1>
-            <p class="subtitle">
+            <h1 id="dashboardTitle">Noise Logs Dashboard</h1>
+            <p class="subtitle" id="dashboardSubtitle">
               Live field logs with GPS, min/max dB readings, notes, and photos.
             </p>
           </div>
           <div class="hero-actions">
+            <select
+              id="logTypeSelect"
+              class="type-select"
+              onchange="changeLogType()"
+            >
+              <option value="noise">Noise</option>
+              <option value="pollution">Pollution</option>
+            </select>
             <button class="header-action" onclick="downloadCsv()">
               Download CSV
             </button>
@@ -312,11 +442,11 @@
             <div class="value" id="totalLogs">--</div>
           </div>
           <div class="stat">
-            <div class="label">With photos</div>
-            <div class="value" id="photoLogs">--</div>
+            <div class="label" id="secondaryMetricLabel">Min dB seen</div>
+            <div class="value" id="secondaryMetricValue">--</div>
           </div>
           <div class="stat">
-            <div class="label">Max dB seen</div>
+            <div class="label" id="maxMetricLabel">Max dB seen</div>
             <div class="value" id="maxDbSeen">--</div>
           </div>
           <div class="stat">
@@ -346,12 +476,148 @@
       </section>
 
       <section id="list" class="list"></section>
+
+      <div id="editPanelBackdrop" class="edit-panel-backdrop">
+        <div class="edit-panel">
+          <h2 id="editTitle">Edit Log</h2>
+          <div id="editSubtitle" class="edit-subtitle"></div>
+          <div id="editFields" class="edit-grid"></div>
+          <div class="edit-actions">
+            <button class="cancel-edit" onclick="closeEditPanel()">
+              Cancel
+            </button>
+            <button class="save-edit" onclick="saveEditedLog()">
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script>
       const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
       const SUPABASE_KEY =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
+
+      const LOG_CONFIG = {
+        noise: {
+          table: "noise_logs",
+          title: "Noise Logs Dashboard",
+          subtitle:
+            "Live field logs with GPS, min/max dB readings, notes, and photos.",
+          maxLabel: "Max dB seen",
+          secondaryLabel: "Min dB seen",
+          csvFilePrefix: "missing-women-noise-logs",
+          searchFields: ["day", "title", "note", "min_db", "max_db"],
+          editableFields: [
+            { key: "min_db", label: "Min dB", type: "number" },
+            { key: "max_db", label: "Max dB", type: "number" },
+            { key: "note", label: "Note", type: "textarea" },
+          ],
+          headers: [
+            "day",
+            "trip_title",
+            "captured_at",
+            "min_db",
+            "max_db",
+            "latitude",
+            "longitude",
+            "address",
+            "note",
+            "photo_url",
+          ],
+          rowValues(log) {
+            return [
+              log.day,
+              log.title,
+              log.captured_at,
+              log.min_db,
+              log.max_db,
+              log.latitude,
+              log.longitude,
+              getAddressForLog(log),
+              log.note,
+              photoSrc(log),
+            ];
+          },
+          metricChips(log) {
+            return `
+              <span class="chip">Min ${escapeHtml(log.min_db ?? "--")} dB</span>
+              <span class="chip">Max ${escapeHtml(log.max_db ?? "--")} dB</span>
+            `;
+          },
+          maxMetric(logs) {
+            return logs.reduce(
+              (max, l) => Math.max(max, Number(l.max_db || 0)),
+              0,
+            );
+          },
+          secondaryMetric(logs) {
+            const values = logs
+              .map((l) => Number(l.min_db))
+              .filter((value) => !Number.isNaN(value));
+            return values.length ? Math.min(...values) : 0;
+          },
+        },
+        pollution: {
+          table: "pollution_logs",
+          title: "Pollution Logs Dashboard",
+          subtitle: "Live field logs with GPS, PM 2.5, CO, notes, and photos.",
+          maxLabel: "Max PM 2.5 seen",
+          secondaryLabel: "Max CO seen",
+          csvFilePrefix: "missing-women-pollution-logs",
+          searchFields: ["day", "title", "note", "pm25", "co"],
+          editableFields: [
+            { key: "pm25", label: "PM 2.5", type: "number" },
+            { key: "co", label: "CO", type: "number" },
+            { key: "note", label: "Note", type: "textarea" },
+          ],
+          headers: [
+            "day",
+            "trip_title",
+            "captured_at",
+            "pm25",
+            "co",
+            "latitude",
+            "longitude",
+            "address",
+            "note",
+            "photo_url",
+          ],
+          rowValues(log) {
+            return [
+              log.day,
+              log.title,
+              log.captured_at,
+              log.pm25,
+              log.co,
+              log.latitude,
+              log.longitude,
+              getAddressForLog(log),
+              log.note,
+              photoSrc(log),
+            ];
+          },
+          metricChips(log) {
+            return `
+              <span class="chip">PM 2.5 ${escapeHtml(log.pm25 ?? "--")}</span>
+              <span class="chip">CO ${escapeHtml(log.co ?? "--")}</span>
+            `;
+          },
+          maxMetric(logs) {
+            return logs.reduce(
+              (max, l) => Math.max(max, Number(l.pm25 || 0)),
+              0,
+            );
+          },
+          secondaryMetric(logs) {
+            return logs.reduce((max, l) => Math.max(max, Number(l.co || 0)), 0);
+          },
+        },
+      };
+
+      let activeLogType = "noise";
+      let editingLogId = null;
 
       let allLogs = [];
       const addressCacheKey = "missingWomenAddressCache";
@@ -388,8 +654,9 @@
       }
 
       async function fetchLogs() {
+        const config = LOG_CONFIG[activeLogType];
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/noise_logs?select=*&order=captured_at.desc`,
+          `${SUPABASE_URL}/rest/v1/${config.table}?select=*&order=captured_at.desc`,
           {
             headers: {
               apikey: SUPABASE_KEY,
@@ -465,16 +732,20 @@
       }
 
       function updateStats(logs) {
+        const config = LOG_CONFIG[activeLogType];
         const days = [...new Set(logs.map((l) => l.day).filter(Boolean))];
-        const maxDb = logs.reduce(
-          (max, l) => Math.max(max, Number(l.max_db || 0)),
-          0,
-        );
-        const photos = logs.filter((l) => photoSrc(l)).length;
+        const maxMetric = config.maxMetric(logs);
+        const secondaryMetric = config.secondaryMetric(logs);
 
         document.getElementById("totalLogs").textContent = logs.length;
-        document.getElementById("photoLogs").textContent = photos;
-        document.getElementById("maxDbSeen").textContent = maxDb ? maxDb : "--";
+        document.getElementById("secondaryMetricLabel").textContent =
+          config.secondaryLabel;
+        document.getElementById("secondaryMetricValue").textContent =
+          secondaryMetric ? secondaryMetric : "--";
+        document.getElementById("maxMetricLabel").textContent = config.maxLabel;
+        document.getElementById("maxDbSeen").textContent = maxMetric
+          ? maxMetric
+          : "--";
         document.getElementById("activeDays").textContent = days.length;
       }
 
@@ -494,6 +765,7 @@
       }
 
       function filteredLogs() {
+        const config = LOG_CONFIG[activeLogType];
         const day = document.getElementById("dayFilter").value;
         const search = document
           .getElementById("searchInput")
@@ -503,8 +775,10 @@
 
         return allLogs.filter((log) => {
           const matchesDay = day ? String(log.day) === String(day) : true;
-          const combined =
-            `${log.day || ""} ${log.title || ""} ${log.note || ""} ${log.min_db || ""} ${log.max_db || ""}`.toLowerCase();
+          const combined = config.searchFields
+            .map((field) => log[field] || "")
+            .join(" ")
+            .toLowerCase();
           const matchesSearch = search ? combined.includes(search) : true;
           const hasPhoto = Boolean(photoSrc(log));
           const matchesPhoto =
@@ -548,26 +822,123 @@
                 </div>
 
                 <div class="chips">
-                  <span class="chip">Min ${escapeHtml(l.min_db ?? "--")} dB</span>
-                  <span class="chip">Max ${escapeHtml(l.max_db ?? "--")} dB</span>
+                  ${LOG_CONFIG[activeLogType].metricChips(l)}
                   <span class="chip address">${escapeHtml(getAddressForLog(l))}</span>
                 </div>
 
                 ${l.note ? `<div class="note">${escapeHtml(l.note)}</div>` : ""}
                 ${src ? `<a href="${src}" target="_blank" rel="noopener"><img class="photo" src="${src}" alt="Noise log photo" loading="lazy" /></a>` : ""}
 
-                <div class="actions">
-                  ${src ? `<a class="link-btn" href="${src}" target="_blank" rel="noopener">Open Photo</a>` : ""}
-                  ${mapUrl ? `<a class="link-btn map" href="${mapUrl}" target="_blank" rel="noopener">Open Map</a>` : ""}
-                  ${l.latitude && l.longitude ? `<span class="chip">${escapeHtml(l.latitude)}, ${escapeHtml(l.longitude)}</span>` : ""}
+                <div class="card-actions-row">
+                  <div class="actions">
+                    ${src ? `<a class="link-btn" href="${src}" target="_blank" rel="noopener">Open Photo</a>` : ""}
+                    ${mapUrl ? `<a class="link-btn map" href="${mapUrl}" target="_blank" rel="noopener">Open Map</a>` : ""}
+                    ${l.latitude && l.longitude ? `<span class="chip">${escapeHtml(l.latitude)}, ${escapeHtml(l.longitude)}</span>` : ""}
+                  </div>
+                  <button class="edit-btn" onclick="openEditPanel('${escapeHtml(l.id)}')">Edit</button>
                 </div>
               </article>
             `;
           })
           .join("");
       }
+      function openEditPanel(logId) {
+        const log = allLogs.find((item) => String(item.id) === String(logId));
+        if (!log) return;
+
+        editingLogId = logId;
+        const config = LOG_CONFIG[activeLogType];
+        document.getElementById("editTitle").textContent =
+          activeLogType === "noise" ? "Edit Noise Log" : "Edit Pollution Log";
+        document.getElementById("editSubtitle").textContent =
+          `Day ${log.day || "--"} - ${log.title || "Untitled Trip"}`;
+
+        document.getElementById("editFields").innerHTML = config.editableFields
+          .map((field) => {
+            const value = log[field.key] ?? "";
+            if (field.type === "textarea") {
+              return `
+                <div class="edit-field">
+                  <label>${escapeHtml(field.label)}</label>
+                  <textarea data-edit-field="${escapeHtml(field.key)}">${escapeHtml(value)}</textarea>
+                </div>
+              `;
+            }
+
+            return `
+              <div class="edit-field">
+                <label>${escapeHtml(field.label)}</label>
+                <input data-edit-field="${escapeHtml(field.key)}" type="number" step="any" value="${escapeHtml(value)}" />
+              </div>
+            `;
+          })
+          .join("");
+
+        document.getElementById("editPanelBackdrop").classList.add("open");
+      }
+
+      function closeEditPanel() {
+        editingLogId = null;
+        document.getElementById("editPanelBackdrop").classList.remove("open");
+      }
+
+      async function saveEditedLog() {
+        if (!editingLogId) return;
+
+        const config = LOG_CONFIG[activeLogType];
+        const inputs = document.querySelectorAll("[data-edit-field]");
+        const payload = {};
+
+        inputs.forEach((input) => {
+          const key = input.dataset.editField;
+          const fieldConfig = config.editableFields.find(
+            (field) => field.key === key,
+          );
+          if (!fieldConfig) return;
+
+          if (fieldConfig.type === "number") {
+            payload[key] =
+              input.value.trim() === "" ? null : Number(input.value);
+          } else {
+            payload[key] = input.value.trim() === "" ? null : input.value;
+          }
+        });
+
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/${config.table}?id=eq.${encodeURIComponent(editingLogId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+              Prefer: "return=representation",
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+
+        if (!res.ok) {
+          const text = await res.text();
+          alert(`Update failed:\n\n${text}`);
+          return;
+        }
+
+        const updatedRows = await res.json();
+        const updated = updatedRows?.[0];
+        if (updated) {
+          allLogs = allLogs.map((log) =>
+            String(log.id) === String(editingLogId) ? updated : log,
+          );
+        }
+
+        closeEditPanel();
+        updateStats(allLogs);
+        render();
+      }
 
       function downloadCsv() {
+        const config = LOG_CONFIG[activeLogType];
         const logs = filteredLogs();
 
         if (!logs.length) {
@@ -575,34 +946,10 @@
           return;
         }
 
-        const headers = [
-          "day",
-          "trip_title",
-          "captured_at",
-          "min_db",
-          "max_db",
-          "latitude",
-          "longitude",
-          "address",
-          "note",
-          "photo_url",
-        ];
-
-        const rows = logs.map((log) => [
-          log.day,
-          log.title,
-          log.captured_at,
-          log.min_db,
-          log.max_db,
-          log.latitude,
-          log.longitude,
-          getAddressForLog(log),
-          log.note,
-          photoSrc(log),
-        ]);
+        const rows = logs.map((log) => config.rowValues(log));
 
         const csv = [
-          headers.map(csvEscape).join(","),
+          config.headers.map(csvEscape).join(","),
           ...rows.map((row) => row.map(csvEscape).join(",")),
         ].join("\n");
 
@@ -615,16 +962,35 @@
           .replace(/[:T]/g, "-");
 
         link.href = url;
-        link.download = `missing-women-noise-logs-${stamp}.csv`;
+        link.download = `${config.csvFilePrefix}-${stamp}.csv`;
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
       }
 
+      function applyDashboardConfig() {
+        const config = LOG_CONFIG[activeLogType];
+        document.getElementById("dashboardTitle").textContent = config.title;
+        document.getElementById("dashboardSubtitle").textContent =
+          config.subtitle;
+        document.getElementById("searchInput").placeholder =
+          activeLogType === "noise"
+            ? "Search trip, note, day..."
+            : "Search trip, PM 2.5, CO, note, day...";
+      }
+
+      function changeLogType() {
+        activeLogType = document.getElementById("logTypeSelect").value;
+        allLogs = [];
+        applyDashboardConfig();
+        reloadDashboard();
+      }
+
       async function reloadDashboard() {
         document.getElementById("list").innerHTML =
           `<div class="card empty">Loading logs...</div>`;
+        applyDashboardConfig();
         try {
           allLogs = await fetchLogs();
           setupFilter(allLogs);
