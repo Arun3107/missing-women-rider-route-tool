@@ -557,7 +557,7 @@
         <td><span class="num-pill">${plannedCount}</span></td>
         <td><span class="planned-metric">${Number(plannedKm).toFixed ? Number(plannedKm).toFixed(1) : plannedKm} km</span></td>
         <td><span class="time-muted">${plannedTime}</span></td>
-        <td><input value="${formatTime24(t.start_time)}" data-field="start" data-day="${d.day}" onchange="autoSave(${d.day})" placeholder="08:30" maxlength="5" /></td>
+        <td><input value="${formatTime24(t.start_time_manual || t.start_time)}" data-field="start" data-day="${d.day}" onchange="autoSave(${d.day})" placeholder="08:30" maxlength="5" /></td>
         <td><input class="covered-input" value="${covered.join(",")}" data-field="covered" data-day="${d.day}" onchange="autoSave(${d.day})"/></td>
         <td><span class="status-pill ${pendingClass}">${pending.length}</span></td>
         <td><input value="${t.km_covered || ""}" data-field="km" data-day="${d.day}" onchange="autoSave(${d.day})"/></td>
@@ -620,22 +620,35 @@
         inputs.forEach((i) => {
           if (i.dataset.field === "covered")
             payload.itineraries_covered = i.value;
-          if (i.dataset.field === "start") payload.start_time = i.value;
-          if (i.dataset.field === "km") payload.km_covered = i.value;
+          if (i.dataset.field === "start") payload.start_time_manual = i.value;
+          if (i.dataset.field === "km") {
+            payload.km_covered = i.value.trim() === "" ? null : Number(i.value);
+          }
           if (i.dataset.field === "end") payload.end_time = i.value;
           if (i.dataset.field === "upload") payload.cloud_upload_done = i.value;
         });
 
-        await fetch(`${SUPABASE_URL}/rest/v1/day_tracker?on_conflict=day`, {
-          method: "POST",
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json",
-            Prefer: "resolution=merge-duplicates",
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/day_tracker?on_conflict=day`,
+          {
+            method: "POST",
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`,
+              "Content-Type": "application/json",
+              Prefer: "resolution=merge-duplicates,return=minimal",
+            },
+            body: JSON.stringify(payload),
           },
-          body: JSON.stringify(payload),
-        });
+        );
+
+        if (!res.ok) {
+          const text = await res.text();
+          console.error("Auto-save failed", text);
+          showSaveIndicator(`Save failed for Day ${day}`);
+          alert(`Tracker save failed for Day ${day}:\n\n${text}`);
+          return;
+        }
 
         console.log("Auto-saved", day);
         showSaveIndicator(`Day ${day} auto-saved`);

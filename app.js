@@ -6,7 +6,6 @@ const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwa21kbnFraGZiYnZ1emx2b3pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MDgwMTksImV4cCI6MjA3MzA4NDAxOX0.OZ4anxunvuVAypmoURVxmsPIeQv6aniGh6jRZdIU104";
 const SUPABASE_NOISE_TABLE = "noise_logs";
-const SUPABASE_TRACKER_TABLE = "day_tracker";
 const SUPABASE_PHOTO_BUCKET = "noise-photos";
 
 function isSupabaseReady() {
@@ -166,51 +165,6 @@ async function fetchNoiseLogsFromSupabase() {
   }));
 }
 
-async function recordDayStart(day) {
-  if (!isSupabaseReady()) return;
-
-  try {
-    const existingRes = await fetch(
-      `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${SUPABASE_TRACKER_TABLE}?day=eq.${day}&select=day,start_time&limit=1`,
-      {
-        method: "GET",
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-      },
-    );
-
-    if (!existingRes.ok) return;
-
-    const existing = await existingRes.json();
-    if (existing?.[0]?.start_time) return;
-
-    const upsertRes = await fetch(
-      `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${SUPABASE_TRACKER_TABLE}?on_conflict=day`,
-      {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=minimal",
-        },
-        body: JSON.stringify({
-          day,
-          start_time: new Date().toISOString(),
-        }),
-      },
-    );
-
-    if (!upsertRes.ok) {
-      console.warn("Could not record day start", await upsertRes.text());
-    }
-  } catch (err) {
-    console.warn("Could not record day start", err);
-  }
-}
-
 function fmt(n) {
   return Number(n || 0).toFixed(1);
 }
@@ -262,7 +216,7 @@ function render() {
               </div>
 
               <div class="actions">
-                <a class="btn nav" href="${t.navigationUrl}" target="_blank" onclick="recordDayStart(${d.day})">Navigate</a>
+                <a class="btn nav" href="${t.navigationUrl}" target="_blank">Navigate</a>
                 <button class="btn noise" onclick='openNoise(${JSON.stringify({ day: d.day, itineraryId: t.itineraryId, part: t.part, title: t.title })})'>Noise</button>
               </div>
             </article>
