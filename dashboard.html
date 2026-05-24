@@ -430,6 +430,9 @@
             <button class="header-action" onclick="downloadCsv()">
               Download CSV
             </button>
+            <button class="header-action" onclick="downloadAddressCache()">
+              Export Addresses
+            </button>
             <button class="header-action" onclick="reloadDashboard()">
               Refresh
             </button>
@@ -633,6 +636,19 @@
 
       function saveAddressCache() {
         localStorage.setItem(addressCacheKey, JSON.stringify(addressCache));
+      }
+
+      function downloadAddressCache() {
+        const json = JSON.stringify(addressCache, null, 2);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "address_cache.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
 
       function coordinateKey(lat, lng) {
