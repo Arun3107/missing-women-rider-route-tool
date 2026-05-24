@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Export rider pollution data to streetaqi readings format.
+"""Unified export script for rider data.
 
-Transforms pollution logs from this tool into a standard readings JSON
-schema for air quality analysis.
+Exports rider data (pollution or sound) from manifest to destination format.
 
 Usage:
-    python export_pollution.py --manifest exports/2026-05-24/manifest.json --output ../streetaqi/data/rider --city delhi
+    python export.py --type pollution --manifest exports/export-2026-05-24/manifest.json
+    python export.py --type sound --manifest exports/export-2026-05-24/manifest.json
+    python export.py --type pollution --manifest ... --geocode --city delhi
 """
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from datetime import datetime, timezone
@@ -21,6 +23,22 @@ import requests
 
 IST = ZoneInfo("Asia/Kolkata")
 
+DEFAULT_OUTPUTS = {
+    "pollution": Path("../streetaqi/data/rider"),
+    "sound": Path("../soundscape/data/rider"),
+}
+
+USER_AGENTS = {
+    "pollution": (
+        "streetaqi-research/1.0 "
+        "(https://github.com/soodoku/streetaqi; gaurav.sood@outlook.com)"
+    ),
+    "sound": (
+        "soundscape-delhi-research/1.0 "
+        "(https://github.com/soodoku/soundscape; gaurav.sood@outlook.com)"
+    ),
+}
+
 
 def coord_key(lat: float, lng: float) -> str:
     """Generate consistent cache key for coordinates."""
@@ -30,17 +48,7 @@ def coord_key(lat: float, lng: float) -> str:
 def reverse_geocode(
     lat: float, lng: float, cache: dict, session: requests.Session
 ) -> dict | None:
-    """Fetch location data for coordinates using Nominatim.
-
-    Args:
-        lat: Latitude
-        lng: Longitude
-        cache: Location cache dict (modified in place)
-        session: Requests session with headers set
-
-    Returns:
-        Dict with address, road_type, road_name or None if lookup fails
-    """
+    """Fetch location data for coordinates using Nominatim."""
     key = coord_key(lat, lng)
     if key in cache:
         return cache[key]
@@ -69,20 +77,7 @@ def reverse_geocode(
 
 
 def parse_note(note: str | None) -> dict:
-    """Parse note field to extract stop_id and traffic annotations.
-
-    The rider enters notes like "1.2" or "2.1 traffic stop" or "3.4 traffic jam".
-
-    Classification logic:
-    - is_traffic_stop: True if note contains "traffic stop" (case-insensitive)
-      Indicates reading was taken while stopped at a traffic signal/intersection
-    - is_traffic_jam: True if note contains "traffic jam" (case-insensitive)
-      Indicates reading was taken while stuck in traffic congestion
-    - stop_id: First token in note (e.g., "1.2" from "1.2 traffic stop")
-      Format is typically itinerary.stop_number
-
-    The raw note is preserved separately in metadata.note_raw for reference.
-    """
+    """Parse note field to extract stop_id and traffic annotations."""
     if not note:
         return {
             "stop_id": None,
@@ -116,10 +111,22 @@ def convert_timestamp_to_ist(ts_str: str | None) -> str | None:
     return dt_ist.isoformat()
 
 
+def extract_reading_data(log: dict, data_type: str) -> dict:
+    """Extract type-specific reading fields from log."""
+    if data_type == "pollution":
+        return {"pm25": log.get("pm25"), "co": log.get("co")}
+    else:
+        return {"min_db": log.get("min_db"), "max_db": log.get("max_db"), "status": "ok"}
+
+
 def convert_reading(
-    log: dict, export_dir: Path, location: dict | None = None
+    log: dict,
+    data_type: str,
+    export_name: str,
+    export_dir: Path,
+    location: dict | None = None,
 ) -> dict:
-    """Convert a single pollution log to streetaqi reading format."""
+    """Convert a single log to reading format."""
     note_parsed = parse_note(log.get("note"))
 
     itinerary = None
@@ -128,7 +135,10 @@ def convert_reading(
 
     frame_path = None
     if log.get("image") and log["image"].get("local_path"):
-        frame_path = str(export_dir / log["image"]["local_path"])
+        if data_type == "pollution":
+            frame_path = f"data/rider/{export_name}/{log['image']['local_path']}"
+        else:
+            frame_path = str(export_dir / log["image"]["local_path"])
 
     timestamp_ist = convert_timestamp_to_ist(log.get("captured_at"))
 
@@ -148,10 +158,7 @@ def convert_reading(
             "latitude": log.get("latitude"),
             "longitude": log.get("longitude"),
         },
-        "reading": {
-            "pm25": log.get("pm25"),
-            "co": log.get("co"),
-        },
+        "reading": extract_reading_data(log, data_type),
         "frame_path": frame_path,
         "image": image_data,
         "metadata": {
@@ -173,60 +180,110 @@ def convert_reading(
     return reading
 
 
+def copy_images(manifest: dict, source_dir: Path, dest_dir: Path) -> int:
+    """Copy pollution images to destination directory."""
+    pollution_logs = manifest.get("pollution_logs", [])
+    copied = 0
+
+    for log in pollution_logs:
+        if not log.get("image") or not log["image"].get("local_path"):
+            continue
+
+        local_path = log["image"]["local_path"]
+        src = source_dir / local_path
+        dst = dest_dir / local_path
+
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            copied += 1
+
+    return copied
+
+
+def load_location_cache(
+    data_type: str,
+    source_dir: Path,
+    city_dir: Path | None,
+    location_cache_path: Path | None,
+) -> dict:
+    """Load location cache from available sources."""
+    cache_sources = []
+    if location_cache_path:
+        cache_sources.append(location_cache_path)
+
+    if data_type == "pollution" and city_dir:
+        cache_sources.append(city_dir / "location_cache.json")
+
+    cache_sources.append(source_dir / "location_cache.json")
+
+    for cache_path in cache_sources:
+        if cache_path.exists():
+            print(f"Loading location cache from {cache_path}")
+            with open(cache_path) as f:
+                cache = json.load(f)
+            print(f"  Loaded {len(cache)} cached locations")
+            return cache
+
+    return {}
+
+
 def process(
     manifest_path: Path,
     output_dir: Path,
+    data_type: str,
     city: str = "delhi",
     geocode: bool = False,
     geocode_delay: float = 1.1,
     location_cache_path: Path | None = None,
 ) -> None:
-    """Convert rider manifest pollution data to streetaqi readings JSON.
+    """Export rider data to destination format."""
+    source_dir = manifest_path.parent
+    export_name = f"export-{datetime.now().strftime('%Y-%m-%d')}"
 
-    Args:
-        manifest_path: Path to rider manifest.json
-        output_dir: Output directory (e.g., streetaqi/data/rider)
-        city: City name for organizing output
-        geocode: Whether to reverse geocode coordinates
-        geocode_delay: Delay between geocode requests (Nominatim policy: 1/sec)
-        location_cache_path: Path to shared location_cache.json
-    """
-    city_dir = output_dir / city
-    city_dir.mkdir(parents=True, exist_ok=True)
-
-    export_dir = manifest_path.parent
+    if data_type == "pollution":
+        export_dir = output_dir / export_name
+        city_dir = output_dir / city
+        export_dir.mkdir(parents=True, exist_ok=True)
+        city_dir.mkdir(parents=True, exist_ok=True)
+        readings_output_dir = city_dir
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        export_dir = source_dir
+        city_dir = None
+        readings_output_dir = output_dir
 
     print(f"Loading manifest from {manifest_path}")
     with open(manifest_path) as f:
         manifest = json.load(f)
 
-    pollution_logs = manifest.get("pollution_logs", [])
-    print(f"  Found {len(pollution_logs)} pollution logs")
+    log_key = "pollution_logs" if data_type == "pollution" else "noise_logs"
+    logs = manifest.get(log_key, [])
+    print(f"  Found {len(logs)} {data_type} logs")
 
-    if not pollution_logs:
-        print("  No pollution logs to convert")
+    if not logs:
+        print(f"  No {data_type} logs to export")
         return
 
-    location_cache: dict = {}
-    if location_cache_path is None:
-        default_cache = export_dir / "location_cache.json"
-        if default_cache.exists():
-            location_cache_path = default_cache
-    if location_cache_path:
-        print(f"Loading location cache from {location_cache_path}")
-        with open(location_cache_path) as f:
-            location_cache = json.load(f)
-        print(f"  Loaded {len(location_cache)} cached locations")
+    if data_type == "pollution":
+        dest_manifest = export_dir / "manifest.json"
+        shutil.copy2(manifest_path, dest_manifest)
+        print(f"  Copied manifest -> {dest_manifest}")
+
+        print("  Copying pollution images...")
+        copied = copy_images(manifest, source_dir, export_dir)
+        print(f"  Copied {copied} images -> {export_dir}/images/pollution/")
+
+    location_cache = load_location_cache(
+        data_type, source_dir, city_dir, location_cache_path
+    )
 
     session = requests.Session()
-    session.headers["User-Agent"] = (
-        "soundscape-delhi-research/1.0 "
-        "(https://github.com/soodoku/soundscape; gaurav.sood@outlook.com)"
-    )
+    session.headers["User-Agent"] = USER_AGENTS[data_type]
 
     readings = []
     geocoded_count = 0
-    for i, log in enumerate(pollution_logs):
+    for i, log in enumerate(logs):
         location = None
         if log.get("latitude") and log.get("longitude"):
             key = coord_key(log["latitude"], log["longitude"])
@@ -237,14 +294,14 @@ def process(
                 else:
                     location = cached
             elif geocode:
-                print(f"\r  Geocoding: {i + 1}/{len(pollution_logs)}", end="", flush=True)
+                print(f"\r  Geocoding: {i + 1}/{len(logs)}", end="", flush=True)
                 location = reverse_geocode(
                     log["latitude"], log["longitude"], location_cache, session
                 )
                 geocoded_count += 1
                 time.sleep(geocode_delay)
 
-        reading = convert_reading(log, export_dir, location)
+        reading = convert_reading(log, data_type, export_name, export_dir, location)
         readings.append(reading)
 
     if geocode and geocoded_count > 0:
@@ -264,27 +321,42 @@ def process(
 
     output = {
         "source": "rider_form",
-        "city": city,
         "export_date": manifest.get("export_date"),
         "reading_count": len(readings),
         "readings": readings,
     }
 
-    output_path = city_dir / "readings.json"
+    if data_type == "pollution":
+        output["city"] = city
+        output["export_name"] = export_name
+
+    output_path = readings_output_dir / "readings.json"
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"\nWrote {output_path}")
 
     if geocode and geocoded_count > 0:
-        cache_path = city_dir / "location_cache.json"
+        cache_path = readings_output_dir / "location_cache.json"
         with open(cache_path, "w") as f:
             json.dump(location_cache, f, indent=2)
         print(f"Wrote {cache_path}")
 
+    if data_type == "pollution":
+        print(f"\nTo annotate images with LLM:")
+        print(f"  cd ../streetaqi")
+        print(f"  streetaqi annotate --images 'data/rider/{export_name}/images/pollution/**/*.jpg'")
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Export rider pollution data to streetaqi readings format"
+        description="Export rider data (pollution or sound)"
+    )
+    parser.add_argument(
+        "--type",
+        type=str,
+        required=True,
+        choices=["pollution", "sound"],
+        help="Type of data to export: pollution or sound",
     )
     parser.add_argument(
         "--manifest",
@@ -295,25 +367,25 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("../streetaqi/data/rider"),
-        help="Output directory (default: ../streetaqi/data/rider)",
+        default=None,
+        help="Output directory (default depends on --type)",
     )
     parser.add_argument(
         "--city",
         type=str,
         default="delhi",
-        help="City name for organizing output (default: delhi)",
+        help="City name for organizing output (default: delhi, pollution only)",
     )
     parser.add_argument(
         "--location-cache",
         type=Path,
         default=None,
-        help="Path to location_cache.json (auto-loads from export dir)",
+        help="Path to location_cache.json (auto-loads from export/dest dir)",
     )
     parser.add_argument(
-        "--geocode",
+        "--no-geocode",
         action="store_true",
-        help="Reverse geocode coordinates to addresses (slow, ~1 req/sec)",
+        help="Skip reverse geocoding (default: geocode enabled)",
     )
     parser.add_argument(
         "--geocode-delay",
@@ -321,18 +393,20 @@ def main():
         default=1.1,
         help="Delay between geocode requests in seconds (default: 1.1)",
     )
-
     args = parser.parse_args()
 
     if not args.manifest.exists():
         print(f"Error: manifest not found: {args.manifest}", file=sys.stderr)
         sys.exit(1)
 
+    output_dir = args.output if args.output else DEFAULT_OUTPUTS[args.type]
+
     process(
         manifest_path=args.manifest,
-        output_dir=args.output,
+        output_dir=output_dir,
+        data_type=args.type,
         city=args.city,
-        geocode=args.geocode,
+        geocode=not args.no_geocode,
         geocode_delay=args.geocode_delay,
         location_cache_path=args.location_cache,
     )
