@@ -30,7 +30,9 @@ POLLUTION_TABLE = "pollution_logs"
 def campaign_of(itinerary_id) -> str:
     """Campaign from an itinerary ID: 'hcmc_d01' -> 'hcmc'; Delhi's numeric IDs -> 'delhi'."""
     text = str(itinerary_id or "")
-    return text.split("_")[0] if "_" in text else "delhi"
+    campaign = text.split("_")[0] if "_" in text else "delhi"
+    # itinerary_id is rider-supplied (public anon key) and becomes a folder name.
+    return campaign if re.fullmatch(r"[a-z0-9-]{1,32}", campaign) else "unknown"
 
 
 def sanitize_filename(title: str) -> str:
