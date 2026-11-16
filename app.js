@@ -1,6 +1,8 @@
 const state = { plan: null, openDay: null, currentTrip: null };
 const $ = (s) => document.querySelector(s);
-const storageKey = "missingWomenRiderState";
+const storageKey = window.RIDER_STORAGE_KEY || "missingWomenRiderState";
+// Campaigns share one photo bucket and reuse day numbers; Delhi keeps the bare path.
+const campaignPrefix = window.RIDER_CAMPAIGN ? `${window.RIDER_CAMPAIGN}/` : "";
 
 const SUPABASE_URL = "https://rpkmdnqkhfbbvuzlvozs.supabase.co";
 const SUPABASE_ANON_KEY =
@@ -142,7 +144,7 @@ async function uploadNoisePhotoToSupabase(entry, dataUrl) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
   const fileName = `${Date.now()}-day-${entry.day}-${safeTitle || "noise"}.jpg`;
-  const filePath = `day-${entry.day}/${fileName}`;
+  const filePath = `${campaignPrefix}day-${entry.day}/${fileName}`;
 
   const uploadRes = await fetch(
     `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/${SUPABASE_PHOTO_BUCKET}/${filePath}`,
@@ -179,7 +181,7 @@ async function uploadPollutionPhotoToSupabase(entry, dataUrl) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
   const fileName = `${Date.now()}-day-${entry.day}-${safeTitle || "pollution"}.jpg`;
-  const filePath = `day-${entry.day}/${fileName}`;
+  const filePath = `${campaignPrefix}day-${entry.day}/${fileName}`;
 
   const uploadRes = await fetch(
     `${SUPABASE_URL.replace(/\/$/, "")}/storage/v1/object/${SUPABASE_POLLUTION_BUCKET}/${filePath}`,
