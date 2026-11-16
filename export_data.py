@@ -27,6 +27,14 @@ NOISE_TABLE = "noise_logs"
 POLLUTION_TABLE = "pollution_logs"
 
 
+def campaign_of(itinerary_id) -> str:
+    """Campaign from an itinerary ID: 'hcmc_d01' -> 'hcmc'; Delhi's numeric IDs -> 'delhi'."""
+    text = str(itinerary_id or "")
+    campaign = text.split("_")[0] if "_" in text else "delhi"
+    # itinerary_id is rider-supplied (public anon key) and becomes a folder name.
+    return campaign if re.fullmatch(r"[a-z0-9-]{1,32}", campaign) else "unknown"
+
+
 def sanitize_filename(title: str) -> str:
     """Convert title to safe filename."""
     safe = re.sub(r"[^a-z0-9]+", "-", (title or "untitled").lower())
@@ -67,17 +75,19 @@ def process_logs(
     images_downloaded = 0
     total_with_photos = sum(1 for x in logs if x.get("photo_url"))
 
-    day_counters: dict[int, int] = {}
+    # Campaigns share tables and reuse day numbers, so key everything on both.
+    day_counters: dict[tuple[str, int], int] = {}
 
     for log in logs:
         day = log.get("day", 0)
-        if day not in day_counters:
-            day_counters[day] = 0
-        day_counters[day] += 1
-        seq = day_counters[day]
+        campaign = campaign_of(log.get("itinerary_id"))
+        key = (campaign, day)
+        day_counters[key] = day_counters.get(key, 0) + 1
+        seq = day_counters[key]
 
         record = {
             "id": log.get("id"),
+            "campaign": campaign,
             "day": day,
             "itinerary_id": log.get("itinerary_id"),
             "part": log.get("part"),
@@ -101,7 +111,7 @@ def process_logs(
         if photo_url:
             safe_title = sanitize_filename(log.get("title") or "untitled")
             filename = f"{seq:03d}_{safe_title}.jpg"
-            day_folder = f"day-{day:02d}"
+            day_folder = os.path.join(campaign, f"day-{day:02d}")
             local_path = f"images/{log_type}/{day_folder}/{filename}"
             full_path = os.path.join(images_base, log_type, day_folder, filename)
 
@@ -139,6 +149,7 @@ def write_csv(logs: list[dict], filepath: str, log_type: str) -> None:
     if log_type == "noise":
         fieldnames = [
             "id",
+            "campaign",
             "day",
             "itinerary_id",
             "part",
@@ -155,6 +166,7 @@ def write_csv(logs: list[dict], filepath: str, log_type: str) -> None:
     else:
         fieldnames = [
             "id",
+            "campaign",
             "day",
             "itinerary_id",
             "part",
